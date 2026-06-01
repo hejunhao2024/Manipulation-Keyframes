@@ -1,0 +1,7 @@
+*.egg-info/
+__pycache__/
+*.py[cod]
+*$py.class
+model_training/
+outputs/
+checkpoints/

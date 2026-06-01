@@ -1,0 +1,33 @@
+{
+  "model": {
+    "model_id": "Wan-AI/Wan2.1-I2V-14B-480P",
+    "tokenizer_path": "/home/hejunhao-20251119/mnt/work/HOI-Motion-Transfer/models/Wan2.1-I2V-14B-480P/google/umt5-xxl/"
+  },
+  "input": {
+    "image": "/home/hejunhao-20251119/mnt/work/Manipulation-Keyframes/000.jpg",
+    "prompt": "A dual-arm tabletop manipulation scene viewed from above. The task is to pick up one white circular object from the center bin and place it into the right blue bin.",
+    "negative_prompt": "",
+    "frame_prompts": [
+      "Initial frame: both robot grippers hover above the bins.",
+      "The right gripper moves toward a white circular object.",
+      "The right gripper aligns around the object.",
+      "The right gripper grasps the object.",
+      "The right gripper lifts the object."
+    ]
+  },
+  "output": {
+    "out_dir": "/home/hejunhao-20251119/mnt/work/Manipulation-Keyframes/debug_outputs/one_test"
+  },
+  "infer": {
+    "height": 480,
+    "width": 832,
+    "num_inference_steps": 10,
+    "cfg_scale": 5.0,
+    "cfg_merge": false,
+    "sigma_shift": 5.0,
+    "seed": 42,
+    "tiled": true,
+    "tile_size": [30, 52],
+    "tile_stride": [15, 26]
+  }
+}

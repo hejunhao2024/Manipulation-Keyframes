@@ -1,0 +1,9 @@
+
+models/
+models/Wan-AI/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.onnx
