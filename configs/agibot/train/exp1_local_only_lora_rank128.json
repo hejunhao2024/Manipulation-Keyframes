@@ -1,0 +1,82 @@
+{
+  "model": {
+    "model_id": "Wan-AI/Wan2.1-I2V-14B-480P",
+    "device": "cuda",
+    "offload_device": "cpu",
+    "onload_device": "cpu",
+    "computation_device": "cuda",
+    "vram_limit_gb": 76
+  },
+  "data": {
+    "train_manifest": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/manifest/train.txt",
+    "val_manifest": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/manifest/val.txt",
+    "shuffle": true,
+    "shuffle_seed": 42,
+    "expected_num_slots": 21,
+    "text_cache_dir": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/cache/text_local",
+    "vae_cache_dir": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/cache/vae"
+  },
+  "train": {
+    "conditioning_mode": "local_only",
+    "seed": 42,
+    "max_steps": 9000,
+    "train_mode": "lora_plus_full_keywords",
+    "lora_lr": 0.0001,
+    "cross_attn_lr": 2e-05,
+    "full_extra_lr": 2e-05,
+    "weight_decay": 0.0,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "eps": 1e-08,
+    "use_gradient_checkpointing": true,
+    "use_gradient_checkpointing_offload": false,
+    "min_timestep": 0.0,
+    "max_timestep": 1000.0,
+    "log_every": 10,
+    "save_every": 500,
+    "empty_cache_every": 20,
+    "lora": {
+      "rank": 128,
+      "alpha": 128,
+      "dropout": 0.05,
+      "target_keywords": [
+        "self_attn"
+      ],
+      "skip_keywords": []
+    },
+    "full_train_keywords": [
+      "cross_attn",
+      "norm3",
+      "img_emb"
+    ],
+    "resume": {
+      "mode": "none",
+      "path": "",
+      "tag": null,
+      "keep_step": false
+    },
+    "out_dir": "/media/datasets/yumi/hjh/Manipulation-Keyframes/runs/exp1_local_only_lora_rank128"
+  },
+  "deepspeed": {
+    "train_micro_batch_size_per_gpu": 1,
+    "gradient_accumulation_steps": 1,
+    "train_batch_size": 4,
+    "bf16": {
+      "enabled": true
+    },
+    "zero_optimization": {
+      "stage": 2,
+      "contiguous_gradients": true,
+      "overlap_comm": true,
+      "reduce_scatter": true,
+      "allgather_partitions": true,
+      "reduce_bucket_size": 500000000,
+      "allgather_bucket_size": 500000000
+    },
+    "gradient_clipping": 1.0,
+    "steps_per_print": 1000000,
+    "wall_clock_breakdown": false
+  }
+}

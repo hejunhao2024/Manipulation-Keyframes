@@ -1,0 +1,74 @@
+{
+  "experiment": {
+    "name": "exp3_dual_context_stable_lora_rank128",
+    "dir": "/media/datasets/yumi/hjh/Manipulation-Keyframes/runs/exp3_dual_context_stable_lora_rank128"
+  },
+  "model": {
+    "model_id": "Wan-AI/Wan2.1-I2V-14B-480P",
+    "local_model_path": "/media/datasets/yumi/hjh/Manipulation-Keyframes/models",
+    "skip_download": true,
+    "tokenizer_path": "/media/datasets/yumi/hjh/models/Wan2.1-I2V-14B-480P/google/umt5-xxl/",
+    "device": "cuda",
+    "offload_device": "cpu",
+    "onload_device": "cpu",
+    "computation_device": "cuda",
+    "vram_limit_gb": 76
+  },
+  "checkpoint": {
+    "conditioning_mode": "dual_context",
+    "selector": "latest",
+    "path": ""
+  },
+  "dual_context": {
+    "global_scale_init": 1.0,
+    "local_scale_init": 1.0,
+    "max_context_scale": 2.0
+  },
+  "adapter": {
+    "rank": 128,
+    "alpha": 128,
+    "dropout": 0.05,
+    "target_keywords": [
+      "self_attn",
+      "cross_attn"
+    ],
+    "skip_keywords": []
+  },
+  "data": {
+    "val_manifest": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/manifest/eval_2_per_case.txt",
+    "expected_num_slots": 21,
+    "start_index": 0,
+    "num_samples": null
+  },
+  "inference": {
+    "output_dir": "",
+    "height": 480,
+    "width": 640,
+    "num_inference_steps": 50,
+    "cfg_scale": 5.0,
+    "cfg_merge": false,
+    "sigma_shift": 5.0,
+    "seed": 42,
+    "seed_per_sample": true,
+    "rand_device": "cpu",
+    "tiled": true,
+    "tile_size": [
+      30,
+      40
+    ],
+    "tile_stride": [
+      15,
+      20
+    ],
+    "tea_cache_l1_thresh": null,
+    "tea_cache_model_id": "Wan2.1-I2V-14B-480P",
+    "framewise_decoding": false,
+    "output_type": "quantized",
+    "save_ground_truth": true,
+    "contact_sheet_thumb_width": 192,
+    "compare_square_size": 512,
+    "compare_fps": 1,
+    "overwrite": false,
+    "fail_fast": false
+  }
+}

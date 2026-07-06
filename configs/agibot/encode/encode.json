@@ -1,0 +1,34 @@
+{
+  "model": {
+    "model_id": "Wan-AI/Wan2.1-I2V-14B-480P",
+    "model_path": "/media/datasets/yumi/hjh/models/Wan2.1-I2V-14B-480P",
+    "tokenizer_path": "/media/datasets/yumi/hjh/models/Wan2.1-I2V-14B-480P/google/umt5-xxl/",
+    "device": "cuda",
+    "offload_device": "cpu",
+    "onload_device": "cpu",
+    "computation_device": "cuda",
+    "vram_limit_gb": 76
+  },
+  "data": {
+    "train_manifest": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/manifest/all.txt",
+    "val_manifest": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/manifest/val.txt",
+    "expected_num_slots": 21,
+    "global_prompt_field": "global_prompt_long",
+    "local_text_cache_dir": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/cache/text_local",
+    "dual_text_cache_dir": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/cache/text_global_local",
+    "vae_cache_dir": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/cache/vae"
+  },
+  "infer": {
+    "height": 480,
+    "width": 640,
+    "tiled": true,
+    "tile_size": [
+      30,
+      40
+    ],
+    "tile_stride": [
+      15,
+      20
+    ]
+  }
+}

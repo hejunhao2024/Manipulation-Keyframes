@@ -1,0 +1,59 @@
+{
+  "model": {
+    "model_id": "Wan-AI/Wan2.1-I2V-14B-480P",
+    "tokenizer_path": "/media/datasets/yumi/hjh/models/Wan2.1-I2V-14B-480P/google/umt5-xxl/",
+    "device": "cuda",
+    "offload_device": "cpu",
+    "onload_device": "cpu",
+    "computation_device": "cuda",
+    "vram_limit_gb": 76
+  },
+  "checkpoint": {
+    "conditioning_mode": "local_only",
+    "path": "/media/datasets/yumi/hjh/runs/agibot_non_ar_local_rank128/checkpoints/trainable_step_009000.pt"
+  },
+  "adapter": {
+    "rank": 128,
+    "alpha": 128,
+    "dropout": 0.05,
+    "target_keywords": [
+      "self_attn"
+    ],
+    "skip_keywords": []
+  },
+  "data": {
+    "val_manifest": "/media/datasets/yumi/hjh/datasets/keyframes_manifest/val.txt",
+    "expected_num_slots": 21,
+    "start_index": 0,
+    "num_samples": 20
+  },
+  "inference": {
+    "output_dir": "/media/datasets/yumi/hjh/runs/agibot_non_ar_local_rank128/inference/step_009000_val20",
+    "height": 480,
+    "width": 832,
+    "num_inference_steps": 20,
+    "cfg_scale": 5.0,
+    "cfg_merge": false,
+    "sigma_shift": 5.0,
+    "seed": 42,
+    "seed_per_sample": true,
+    "rand_device": "cpu",
+    "tiled": true,
+    "tile_size": [
+      30,
+      52
+    ],
+    "tile_stride": [
+      15,
+      26
+    ],
+    "tea_cache_l1_thresh": null,
+    "tea_cache_model_id": "Wan2.1-I2V-14B-480P",
+    "framewise_decoding": false,
+    "output_type": "quantized",
+    "save_ground_truth": true,
+    "contact_sheet_thumb_width": 192,
+    "overwrite": false,
+    "fail_fast": false
+  }
+}

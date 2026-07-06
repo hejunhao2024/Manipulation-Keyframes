@@ -1,0 +1,100 @@
+{
+  "model": {
+    "model_id": "Wan-AI/Wan2.1-I2V-14B-480P",
+    "tokenizer_path": "/media/datasets/yumi/hjh/models/Wan2.1-I2V-14B-480P/google/umt5-xxl/",
+    "device": "cuda",
+    "offload_device": "cpu",
+    "onload_device": "cpu",
+    "computation_device": "cuda",
+    "vram_limit_gb": 76
+  },
+  "data": {
+    "train_manifest": "/media/datasets/yumi/hjh/datasets/keyframes_manifest/train.txt",
+    "val_manifest": "/media/datasets/yumi/hjh/datasets/keyframes_manifest/val.txt",
+    "shuffle": true,
+    "shuffle_seed": 42,
+    "print_first_n": 20,
+    "cache_mode": true,
+    "text_cache_dir": "/media/datasets/yumi/hjh/cache/keyframe_text_cache_train",
+    "vae_cache_dir": "/media/datasets/yumi/hjh/cache/keyframe_vae_cache_train_y"
+  },
+  "infer": {
+    "height": 480,
+    "width": 832,
+    "num_inference_steps": 20,
+    "preview_num_inference_steps": 20,
+    "cfg_scale": 5.0,
+    "sigma_shift": 5.0,
+    "seed": 42,
+    "rand_device": "cpu",
+    "tiled": true,
+    "tile_size": [
+      30,
+      52
+    ],
+    "tile_stride": [
+      15,
+      26
+    ]
+  },
+  "train": {
+    "steps": 9000,
+    "train_mode": "lora_plus_full_keywords",
+    "resume_trainable_path": "/media/datasets/yumi/hjh/runs/keyframes_v10_full_lora_crossattn_lazy_from_overfit/checkpoints/trainable_step_001000.pt",
+    "lora_lr": 0.0001,
+    "cross_attn_lr": 2e-05,
+    "full_extra_lr": 2e-05,
+    "weight_decay": 0.0,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "eps": 1e-08,
+    "use_gradient_checkpointing": true,
+    "grad_clip": 1.0,
+    "min_timestep": 0.0,
+    "max_timestep": 1000.0,
+    "log_every": 10,
+    "save_every": 1000,
+    "preview_every": 0,
+    "verbose_prepare_every": 100,
+    "verbose_cache_every": 100,
+    "empty_cache_every": 20,
+    "lora": {
+      "rank": 8,
+      "alpha": 8,
+      "dropout": 0.05,
+      "target_keywords": [
+        "cross_attn",
+        "self_attn"
+      ],
+      "skip_keywords": []
+    },
+    "full_train_keywords": [
+      "norm3",
+      "img_emb"
+    ],
+    "out_dir": "/media/datasets/yumi/hjh/runs/keyframes_cache_full_from_step1000",
+    "step_offset": 1000
+  },
+  "deepspeed": {
+    "train_micro_batch_size_per_gpu": 1,
+    "gradient_accumulation_steps": 1,
+    "train_batch_size": 4,
+    "bf16": {
+      "enabled": true
+    },
+    "zero_optimization": {
+      "stage": 2,
+      "contiguous_gradients": true,
+      "overlap_comm": true,
+      "reduce_scatter": true,
+      "allgather_partitions": true,
+      "reduce_bucket_size": 500000000,
+      "allgather_bucket_size": 500000000
+    },
+    "gradient_clipping": 1.0,
+    "steps_per_print": 1000000,
+    "wall_clock_breakdown": false
+  }
+}

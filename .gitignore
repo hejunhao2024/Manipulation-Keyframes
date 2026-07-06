@@ -7,3 +7,7 @@ models/Wan-AI/
 *.pth
 *.bin
 *.onnx
+runs
+.codex-log/
+__pycache__
+third-party/Stable-Video-Infinity/

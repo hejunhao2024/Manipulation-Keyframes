@@ -1,0 +1,15 @@
+task_id,task_score,sample_count,csv_path
+327,9.0,206,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_327_dino_quality_score.csv
+357,10.0,428,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_357_dino_quality_score.csv
+360,8.0,449,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_360_dino_quality_score.csv
+368,9.0,588,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_368_dino_quality_score.csv
+372,8.0,537,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_372_dino_quality_score.csv
+375,8.0,422,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_375_dino_quality_score.csv
+378,10.0,739,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_378_dino_quality_score.csv
+380,7.0,815,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_380_dino_quality_score.csv
+385,8.0,213,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_385_dino_quality_score.csv
+388,8.0,92,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_388_dino_quality_score.csv
+390,7.0,750,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_390_dino_quality_score.csv
+392,10.0,977,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_392_dino_quality_score.csv
+422,7.0,2089,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_422_dino_quality_score.csv
+424,task,916,/media/datasets/yumi/hjh/Manipulation-Keyframes/data_pipeline/dino_score/task_424_dino_quality_score.csv
