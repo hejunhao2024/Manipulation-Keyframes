@@ -8,16 +8,17 @@
     "onload_device": "cpu",
     "computation_device": "cuda",
     "vram_limit_gb": 76
-  },
-  "data": {
-    "train_manifest": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/manifest/all.txt",
-    "val_manifest": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/manifest/val.txt",
-    "expected_num_slots": 21,
-    "global_prompt_field": "global_prompt_long",
-    "local_text_cache_dir": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/cache/text_local",
-    "dual_text_cache_dir": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/cache/text_global_local",
-    "vae_cache_dir": "/media/datasets/yumi/hjh/datasets/agibot_v2_task/cache/vae"
-  },
+    },
+    "data": {
+        "data_root": "/media/datasets/yumi/hjh",
+        "train_manifest": "/media/datasets/yumi/hjh/datasets/aigbot_final/menifest/train.txt",
+        "val_manifest": "/media/datasets/yumi/hjh/datasets/aigbot_final/menifest/val.txt",
+        "expected_num_slots": 16,
+        "encode_global": false,
+        "local_text_cache_dir": "/media/datasets/yumi/hjh/cache/aigbot_final/text_local",
+        "dual_text_cache_dir": "/media/datasets/yumi/hjh/cache/aigbot_final/text_global_local",
+        "vae_cache_dir": "/media/datasets/yumi/hjh/cache/aigbot_final/vae"
+    },
   "infer": {
     "height": 480,
     "width": 640,

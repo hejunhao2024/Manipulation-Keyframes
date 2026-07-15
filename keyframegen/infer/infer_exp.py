@@ -108,17 +108,50 @@ def load_sample(sample_dir: str, expected_num_slots: int) -> Dict[str, Any]:
     with open(ann_path, "r", encoding="utf-8") as f:
         ann = json.load(f)
 
-    frame_prompts = list(ann["frame_prompts"])
+    if "frame_prompts" in ann:
+        frame_prompts = list(ann["frame_prompts"])
+        keyframes = [
+            resolve_path(sample_root, value)
+            for value in ann.get("keyframes", [])
+        ]
+        image = resolve_path(sample_root, ann["image"])
+        prompt = str(ann.get("prompt", ""))
+        negative_prompt = str(ann.get("negative_prompt", ""))
+        sample_id = str(ann.get("id", sample_root.name))
+    elif "frames" in ann:
+        frames = list(ann["frames"])
+        frame_prompts = [
+            str(
+                frame.get("generated_prompt")
+                or frame.get("frame_prompt_en_compiled")
+                or frame.get("frame_prompt_template_en")
+                or ""
+            )
+            for frame in frames
+        ]
+        keyframes = [
+            resolve_path(sample_root, str(frame["image"]))
+            for frame in frames
+            if frame.get("image")
+        ]
+        image = keyframes[0] if keyframes else resolve_path(sample_root, "01.jpg")
+        prompt = str(ann.get("system_prompt", ann.get("prompt", "")))
+        negative_prompt = str(ann.get("negative_prompt", ""))
+        sample_id = str(
+            ann.get("sample_id")
+            or ann.get("sample_short")
+            or ann.get("id")
+            or sample_root.name
+        )
+    else:
+        raise KeyError(f"{ann_path}: expected frame_prompts or frames")
+
     if len(frame_prompts) != expected_num_slots:
         raise ValueError(
             f"{sample_root}: expected {expected_num_slots} frame prompts, "
             f"got {len(frame_prompts)}"
         )
 
-    keyframes = [
-        resolve_path(sample_root, value)
-        for value in ann.get("keyframes", [])
-    ]
     if keyframes and len(keyframes) != expected_num_slots:
         raise ValueError(
             f"{sample_root}: expected {expected_num_slots} keyframes, "
@@ -126,11 +159,11 @@ def load_sample(sample_dir: str, expected_num_slots: int) -> Dict[str, Any]:
         )
 
     return {
-        "id": str(ann.get("id", sample_root.name)),
+        "id": sample_id,
         "sample_dir": str(sample_root),
-        "image": resolve_path(sample_root, ann["image"]),
-        "prompt": str(ann.get("prompt", "")),
-        "negative_prompt": str(ann.get("negative_prompt", "")),
+        "image": image,
+        "prompt": prompt,
+        "negative_prompt": negative_prompt,
         "frame_prompts": frame_prompts,
         "target_keyframes": keyframes,
     }
@@ -271,6 +304,7 @@ def build_pipe(
     model_cfg = cfg["model"]
     model_id = model_cfg["model_id"]
     tokenizer_path = model_cfg["tokenizer_path"]
+    model_path = model_cfg.get("model_path")
     local_model_path = model_cfg.get("local_model_path")
     skip_download = bool(model_cfg.get("skip_download", False))
     dtype = torch.bfloat16
@@ -289,35 +323,71 @@ def build_pipe(
         torch_dtype=dtype,
         device=device,
         model_configs=[
-            ModelConfig(
-                model_id=model_id,
-                origin_file_pattern="diffusion_pytorch_model*.safetensors",
-                local_model_path=local_model_path,
-                skip_download=skip_download,
-                **vram_config,
+            (
+                ModelConfig(
+                    path=sorted(
+                        str(path)
+                        for path in Path(model_path).glob(
+                            "diffusion_pytorch_model*.safetensors"
+                        )
+                    ),
+                    **vram_config,
+                )
+                if model_path
+                else ModelConfig(
+                    model_id=model_id,
+                    origin_file_pattern="diffusion_pytorch_model*.safetensors",
+                    local_model_path=local_model_path,
+                    skip_download=skip_download,
+                    **vram_config,
+                )
             ),
-            ModelConfig(
-                model_id=model_id,
-                origin_file_pattern="models_t5_umt5-xxl-enc-bf16.pth",
-                local_model_path=local_model_path,
-                skip_download=skip_download,
-                **vram_config,
+            (
+                ModelConfig(
+                    path=str(Path(model_path) / "models_t5_umt5-xxl-enc-bf16.pth"),
+                    **vram_config,
+                )
+                if model_path
+                else ModelConfig(
+                    model_id=model_id,
+                    origin_file_pattern="models_t5_umt5-xxl-enc-bf16.pth",
+                    local_model_path=local_model_path,
+                    skip_download=skip_download,
+                    **vram_config,
+                )
             ),
-            ModelConfig(
-                model_id=model_id,
-                origin_file_pattern=(
-                    "models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth"
-                ),
-                local_model_path=local_model_path,
-                skip_download=skip_download,
-                **vram_config,
+            (
+                ModelConfig(
+                    path=str(
+                        Path(model_path)
+                        / "models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth"
+                    ),
+                    **vram_config,
+                )
+                if model_path
+                else ModelConfig(
+                    model_id=model_id,
+                    origin_file_pattern=(
+                        "models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth"
+                    ),
+                    local_model_path=local_model_path,
+                    skip_download=skip_download,
+                    **vram_config,
+                )
             ),
-            ModelConfig(
-                model_id=model_id,
-                origin_file_pattern="Wan2.1_VAE.pth",
-                local_model_path=local_model_path,
-                skip_download=skip_download,
-                **vram_config,
+            (
+                ModelConfig(
+                    path=str(Path(model_path) / "Wan2.1_VAE.pth"),
+                    **vram_config,
+                )
+                if model_path
+                else ModelConfig(
+                    model_id=model_id,
+                    origin_file_pattern="Wan2.1_VAE.pth",
+                    local_model_path=local_model_path,
+                    skip_download=skip_download,
+                    **vram_config,
+                )
             ),
         ],
         tokenizer_config=ModelConfig(path=tokenizer_path, skip_download=True),
@@ -615,10 +685,8 @@ def validate_config(cfg: Dict[str, Any]) -> None:
     if mode not in {"local_only", "dual_context"}:
         raise ValueError(f"Invalid conditioning mode: {mode}")
 
-    if int(cfg["data"]["expected_num_slots"]) != 21:
-        raise ValueError(
-            "AgiBot non-AR inference currently expects exactly 21 slots."
-        )
+    if int(cfg["data"]["expected_num_slots"]) <= 0:
+        raise ValueError("data.expected_num_slots must be positive.")
 
     checkpoint_path = Path(cfg["checkpoint"]["path"])
     if not checkpoint_path.exists():

@@ -15,7 +15,7 @@ import math
 import time
 import argparse
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from PIL import Image
 import torch
@@ -55,14 +55,47 @@ def resolve_path(base_dir: Path, p: str) -> str:
     return str(base_dir / pp)
 
 
-def load_sample_from_dir(sample_dir: str) -> Dict:
+def resolve_manifest_item(item: str, data_root: Optional[str] = None) -> str:
+    path = Path(item)
+    if path.is_absolute():
+        return str(path)
+    if data_root:
+        return str(Path(data_root) / path)
+    return str(path)
+
+
+def sample_cache_id(sample_dir: Path, ann: Dict, data_root: Optional[str] = None) -> str:
+    for key in ("id", "sample_id", "sample_short"):
+        value = ann.get(key)
+        if value:
+            return str(value).strip("/")
+    if data_root:
+        try:
+            return sample_dir.relative_to(Path(data_root)).as_posix()
+        except ValueError:
+            pass
+    return sample_dir.name
+
+
+def load_sample_from_dir(sample_dir: str, data_root: Optional[str] = None) -> Dict:
     sample_dir = Path(sample_dir)
     ann_path = sample_dir / "annotation.json"
     ann = load_json(str(ann_path))
 
-    image = resolve_path(sample_dir, ann["image"])
-    keyframes = [resolve_path(sample_dir, p) for p in ann["keyframes"]]
-    frame_prompts = ann["frame_prompts"]
+    if "frames" in ann:
+        frames = ann["frames"]
+        if not isinstance(frames, list) or not frames:
+            raise ValueError(f"{sample_dir}: missing non-empty frames list")
+        keyframes = [resolve_path(sample_dir, frame["image"]) for frame in frames]
+        frame_prompts = [
+            frame.get("generated_prompt") or frame.get("frame_prompt_en_compiled") or frame.get("frame_prompt_template_en")
+            for frame in frames
+        ]
+        image = keyframes[0]
+    else:
+        image = resolve_path(sample_dir, ann["image"])
+        keyframes = [resolve_path(sample_dir, p) for p in ann["keyframes"]]
+        frame_prompts = ann["frame_prompts"]
 
     if len(keyframes) != len(frame_prompts):
         raise ValueError(
@@ -70,7 +103,7 @@ def load_sample_from_dir(sample_dir: str) -> Dict:
         )
 
     return {
-        "id": ann.get("id", sample_dir.name),
+        "id": sample_cache_id(sample_dir, ann, data_root=data_root),
         "sample_dir": str(sample_dir),
         "image": image,
         "target_keyframes": keyframes,
@@ -301,6 +334,7 @@ def save_one_pt(sample: Dict, out_dir: str, encoded: Dict, idx_in_batch: int):
     sample_id = sample["id"]
     out_path = os.path.join(out_dir, f"{sample_id}.pt")
     tmp_path = out_path + ".tmp"
+    ensure_dir(os.path.dirname(out_path))
 
     obj = {
         "cache_version": "wan_i2v_vae_v1",
@@ -344,6 +378,7 @@ def main():
     data_cfg = cfg.get("data", {})
     manifest = args.manifest or data_cfg.get("train_manifest")
     out_dir = args.out_dir or data_cfg.get("vae_cache_dir")
+    data_root = data_cfg.get("data_root")
     if not manifest:
         raise ValueError("Missing manifest. Pass --manifest or set data.train_manifest in config.")
     if not out_dir:
@@ -373,9 +408,9 @@ def main():
 
     ensure_dir(out_dir)
 
-    all_dirs = read_manifest(manifest)
+    all_dirs = [resolve_manifest_item(item, data_root=data_root) for item in read_manifest(manifest)]
     shard_dirs = maybe_slice_for_shard(all_dirs, rank, world_size)
-    samples = [load_sample_from_dir(d) for d in shard_dirs]
+    samples = [load_sample_from_dir(d, data_root=data_root) for d in shard_dirs]
     buckets = bucket_by_num_slots(samples)
 
     print(f"[mode] vae_latent_cache")

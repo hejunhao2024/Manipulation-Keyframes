@@ -43,6 +43,15 @@ def read_manifest(path: str) -> List[str]:
         ]
 
 
+def resolve_manifest_item(item: str, data_root: Optional[str] = None) -> str:
+    path = Path(item)
+    if path.is_absolute():
+        return str(path)
+    if data_root:
+        return str(Path(data_root) / path)
+    return str(path)
+
+
 def read_sample_id(sample_dir: str) -> str:
     sample_path = Path(sample_dir)
     ann_path = sample_path / "annotation.json"
@@ -50,7 +59,11 @@ def read_sample_id(sample_dir: str) -> str:
         return sample_path.name
     try:
         ann = load_json(str(ann_path))
-        return str(ann.get("id", sample_path.name))
+        for key in ("id", "sample_id", "sample_short"):
+            value = ann.get(key)
+            if value:
+                return str(value).strip("/")
+        return sample_path.name
     except Exception:
         return sample_path.name
 
@@ -287,6 +300,7 @@ def build_pipe(cfg: Dict[str, Any], conditioning_mode: str, local_rank: int):
     model_cfg = cfg["model"]
     train_cfg = cfg["train"]
     model_id = model_cfg["model_id"]
+    model_path = model_cfg.get("model_path")
     dtype = torch.bfloat16
     device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
 
@@ -303,10 +317,22 @@ def build_pipe(cfg: Dict[str, Any], conditioning_mode: str, local_rank: int):
         torch_dtype=dtype,
         device=device,
         model_configs=[
-            ModelConfig(
-                model_id=model_id,
-                origin_file_pattern="diffusion_pytorch_model*.safetensors",
-                **vram_config,
+            (
+                ModelConfig(
+                    path=sorted(
+                        str(p)
+                        for p in Path(model_path).glob(
+                            "diffusion_pytorch_model*.safetensors"
+                        )
+                    ),
+                    **vram_config,
+                )
+                if model_path
+                else ModelConfig(
+                    model_id=model_id,
+                    origin_file_pattern="diffusion_pytorch_model*.safetensors",
+                    **vram_config,
+                )
             ),
         ],
         tokenizer_config=None,
@@ -537,7 +563,10 @@ def train(cfg: Dict[str, Any]) -> None:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
     barrier(distributed, local_rank)
 
-    train_samples = read_manifest(data_cfg["train_manifest"])
+    train_samples = [
+        resolve_manifest_item(item, data_root=data_cfg.get("data_root"))
+        for item in read_manifest(data_cfg["train_manifest"])
+    ]
     if not train_samples:
         raise ValueError("Empty training manifest.")
 
