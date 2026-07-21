@@ -1,0 +1,69 @@
+{
+  "experiment": {
+    "name": "exp5b_aigbot_final_split_condition_lr_gradfix",
+    "dir": "/media/datasets/yumi/hjh/Manipulation-Keyframes/runs/exp5b_aigbot_final_split_condition_lr_gradfix"
+  },
+  "model": {
+    "model_id": "Wan-AI/Wan2.1-I2V-14B-480P",
+    "model_path": "/media/datasets/yumi/hjh/models/Wan2.1-I2V-14B-480P",
+    "skip_download": true,
+    "tokenizer_path": "/media/datasets/yumi/hjh/models/Wan2.1-I2V-14B-480P/google/umt5-xxl/",
+    "device": "cuda",
+    "offload_device": "cpu",
+    "onload_device": "cpu",
+    "computation_device": "cuda",
+    "vram_limit_gb": 76
+  },
+  "checkpoint": {
+    "conditioning_mode": "local_only",
+    "selector": "step_001000",
+    "path": "/media/datasets/yumi/hjh/Manipulation-Keyframes/runs/exp5b_aigbot_final_split_condition_lr_gradfix/checkpoints/trainable_step_001000.pt"
+  },
+  "adapter": {
+    "rank": 128,
+    "alpha": 128,
+    "dropout": 0.05,
+    "target_keywords": [
+      "self_attn",
+      "cross_attn"
+    ],
+    "skip_keywords": []
+  },
+  "data": {
+    "val_manifest": "/media/datasets/yumi/hjh/datasets/aigbot_final/menifest/mini_val_1_per_class_8.txt",
+    "expected_num_slots": 16,
+    "start_index": 0,
+    "num_samples": 1
+  },
+  "inference": {
+    "output_dir": "/media/datasets/yumi/hjh/exp5b_step1000_192p_quick_test",
+    "height": 192,
+    "width": 256,
+    "num_inference_steps": 50,
+    "cfg_scale": 3.0,
+    "cfg_merge": false,
+    "sigma_shift": 5.0,
+    "seed": 42,
+    "seed_per_sample": true,
+    "rand_device": "cpu",
+    "tiled": true,
+    "tile_size": [
+      24,
+      32
+    ],
+    "tile_stride": [
+      12,
+      16
+    ],
+    "tea_cache_l1_thresh": null,
+    "tea_cache_model_id": "Wan2.1-I2V-14B-480P",
+    "framewise_decoding": false,
+    "output_type": "quantized",
+    "save_ground_truth": true,
+    "contact_sheet_thumb_width": 192,
+    "compare_square_size": 512,
+    "compare_fps": 1,
+    "overwrite": true,
+    "fail_fast": false
+  }
+}

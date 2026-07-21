@@ -1,0 +1,112 @@
+{
+  "model": {
+    "model_id": "Wan-AI/Wan2.1-I2V-14B-480P",
+    "model_path": "/media/datasets/yumi/hjh/models/Wan2.1-I2V-14B-480P",
+    "device": "cuda",
+    "offload_device": "cpu",
+    "onload_device": "cpu",
+    "computation_device": "cuda",
+    "vram_limit_gb": 76
+  },
+  "data": {
+    "data_root": "/media/datasets/yumi/hjh",
+    "train_manifest": "/media/datasets/yumi/hjh/datasets/aigbot_final/menifest/train.txt",
+    "shuffle": true,
+    "shuffle_seed": 42,
+    "expected_num_slots": 16,
+    "text_cache_dir": "/media/datasets/yumi/hjh/cache/aigbot_final/text_local",
+    "vae_cache_dir": "/media/datasets/yumi/hjh/cache/aigbot_final/vae"
+  },
+  "train": {
+    "conditioning_mode": "local_only",
+    "seed": 42,
+    "max_steps": 10000,
+    "train_mode": "lora_plus_full_keywords",
+    "self_attn_lora_lr": 3e-05,
+    "weight_decay": 0.0,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "eps": 1e-08,
+    "use_gradient_checkpointing": true,
+    "use_gradient_checkpointing_offload": false,
+    "flow_matching": {
+      "mode": "diffsynth_wan",
+      "num_train_timesteps": 1000,
+      "sigma_shift": 5.0,
+      "min_timestep_boundary": 0.0,
+      "max_timestep_boundary": 1.0,
+      "use_training_weight": true
+    },
+    "lr_scheduler": {
+      "type": "constant_with_warmup",
+      "warmup_steps": 300
+    },
+    "diagnostics": {
+      "grad_norm_every": 10,
+      "grad_group_every": 100,
+      "check_nonfinite_every": 100,
+      "force_full_steps": [
+        10
+      ]
+    },
+    "log_every": 10,
+    "save_every": 500,
+    "empty_cache_every": 200,
+    "validation": {
+      "enabled": true,
+      "manifest": "/media/datasets/yumi/hjh/datasets/aigbot_final/menifest/mini_val_4_per_class.txt",
+      "every_steps": 250,
+      "seed": 20260715,
+      "num_timestep_bins": 4
+    },
+    "allow_lora_and_full_overlap": false,
+    "lora": {
+      "rank": 128,
+      "alpha": 128,
+      "dropout": 0.05,
+      "target_keywords": [
+        "self_attn",
+        "cross_attn"
+      ],
+      "skip_keywords": []
+    },
+    "full_train_keywords": [
+      "norm3",
+      "img_emb"
+    ],
+    "resume": {
+      "mode": "full",
+      "path": "/media/datasets/yumi/hjh/Manipulation-Keyframes/runs/exp5b_aigbot_final_split_condition_lr_gradfix/checkpoints/deepspeed",
+      "tag": "step_004500",
+      "keep_step": true
+    },
+    "out_dir": "/media/datasets/yumi/hjh/Manipulation-Keyframes/runs/exp5b_aigbot_final_split_condition_lr_gradfix",
+    "cross_attn_shared_lora_lr": 5e-05,
+    "cross_attn_text_lora_lr": 0.0001,
+    "cross_attn_image_lora_lr": 1e-05,
+    "norm3_full_lr": 1e-05,
+    "img_emb_full_lr": 5e-06
+  },
+  "deepspeed": {
+    "train_micro_batch_size_per_gpu": 1,
+    "gradient_accumulation_steps": 2,
+    "train_batch_size": 8,
+    "bf16": {
+      "enabled": true
+    },
+    "zero_optimization": {
+      "stage": 2,
+      "contiguous_gradients": true,
+      "overlap_comm": true,
+      "reduce_scatter": true,
+      "allgather_partitions": true,
+      "reduce_bucket_size": 500000000,
+      "allgather_bucket_size": 500000000
+    },
+    "gradient_clipping": 1.0,
+    "steps_per_print": 1000000,
+    "wall_clock_breakdown": false
+  }
+}

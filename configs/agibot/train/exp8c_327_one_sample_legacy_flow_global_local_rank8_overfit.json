@@ -1,0 +1,128 @@
+{
+  "model": {
+    "model_id": "Wan-AI/Wan2.1-I2V-14B-480P",
+    "model_path": "/media/datasets/yumi/hjh/models/Wan2.1-I2V-14B-480P",
+    "device": "cuda",
+    "offload_device": "cpu",
+    "onload_device": "cpu",
+    "computation_device": "cuda",
+    "vram_limit_gb": 76
+  },
+  "data": {
+    "data_root": "/media/datasets/yumi/hjh",
+    "train_manifest": "/media/datasets/yumi/hjh/datasets/aigbot_final/menifest/overfit_327_short_prompt_one.txt",
+    "shuffle": false,
+    "shuffle_seed": 42,
+    "expected_num_slots": 16,
+    "text_cache_dir": "/media/datasets/yumi/hjh/cache/aigbot_final/text_legacy_global_local_overfit327",
+    "vae_cache_dir": "/media/datasets/yumi/hjh/cache/aigbot_final/vae"
+  },
+  "train": {
+    "conditioning_mode": "local_only",
+    "seed": 42,
+    "max_steps": 1000,
+    "train_mode": "lora_plus_full_keywords",
+    "self_attn_lora_lr": 0.0001,
+    "weight_decay": 0.0,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "eps": 1e-08,
+    "use_gradient_checkpointing": true,
+    "use_gradient_checkpointing_offload": false,
+    "flow_matching": {
+      "mode": "uniform_linear",
+      "min_timestep": 0.0,
+      "max_timestep": 1000.0,
+      "use_training_weight": false
+    },
+    "lr_scheduler": {
+      "type": "constant_with_warmup",
+      "warmup_steps": 25
+    },
+    "diagnostics": {
+      "grad_norm_every": 10,
+      "grad_group_every": 100,
+      "check_nonfinite_every": 100,
+      "force_full_steps": [
+        10
+      ]
+    },
+    "log_every": 5,
+    "save_every": 100,
+    "empty_cache_every": 50,
+    "validation": {
+      "enabled": true,
+      "manifest": "/media/datasets/yumi/hjh/datasets/aigbot_final/menifest/overfit_327_short_prompt_one_val16.txt",
+      "every_steps": 100,
+      "seed": 20260721,
+      "num_timestep_bins": 4
+    },
+    "allow_lora_and_full_overlap": false,
+    "lora": {
+      "rank": 8,
+      "alpha": 8,
+      "dropout": 0.05,
+      "target_keywords": [
+        "self_attn",
+        "cross_attn"
+      ],
+      "skip_keywords": []
+    },
+    "full_train_keywords": [
+      "norm3",
+      "img_emb"
+    ],
+    "resume": {
+      "mode": "none",
+      "path": "",
+      "tag": null,
+      "keep_step": false
+    },
+    "out_dir": "/media/datasets/yumi/hjh/Manipulation-Keyframes/runs/exp8c_327_one_sample_legacy_flow_global_local_rank8_overfit",
+    "cross_attn_shared_lora_lr": 0.0001,
+    "cross_attn_text_lora_lr": 0.0001,
+    "cross_attn_image_lora_lr": 0.0001,
+    "norm3_full_lr": 2e-05,
+    "img_emb_full_lr": 2e-05
+  },
+  "deepspeed": {
+    "train_micro_batch_size_per_gpu": 1,
+    "gradient_accumulation_steps": 1,
+    "train_batch_size": 4,
+    "bf16": {
+      "enabled": true
+    },
+    "zero_optimization": {
+      "stage": 2,
+      "contiguous_gradients": true,
+      "overlap_comm": true,
+      "reduce_scatter": true,
+      "allgather_partitions": true,
+      "reduce_bucket_size": 500000000,
+      "allgather_bucket_size": 500000000
+    },
+    "gradient_clipping": 1.0,
+    "steps_per_print": 1000000,
+    "wall_clock_breakdown": false
+  },
+  "infer": {
+    "height": 480,
+    "width": 640,
+    "num_inference_steps": 20,
+    "preview_num_inference_steps": 20,
+    "cfg_scale": 5.0,
+    "sigma_shift": 5.0,
+    "seed": 42,
+    "tiled": true,
+    "tile_size": [
+      30,
+      40
+    ],
+    "tile_stride": [
+      15,
+      20
+    ]
+  }
+}

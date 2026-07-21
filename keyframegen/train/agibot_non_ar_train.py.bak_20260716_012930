@@ -17,7 +17,6 @@ from torch.utils.tensorboard import SummaryWriter
 
 try:
     import deepspeed
-    from deepspeed.utils import safe_get_full_grad
 except ImportError as exc:
     raise ImportError("deepspeed is required for this trainer") from exc
 
@@ -31,11 +30,9 @@ from diffsynth.core import ModelConfig
 SUPPORTED_FLOW_MATCHING_MODES = {"diffsynth_wan", "uniform_linear"}
 PARAMETER_GROUP_NAMES = (
     "self_attn_lora",
-    "cross_attn_shared_lora",
-    "cross_attn_text_lora",
-    "cross_attn_image_lora",
-    "norm3_full",
-    "img_emb_full",
+    "cross_attn_lora",
+    "cross_attn_full",
+    "full_extra",
 )
 
 
@@ -258,32 +255,10 @@ def print_absent_parameter_groups(
             rank0_print(rank, f"[param_group] {group_name} absent; grad metrics skipped")
 
 
-def train_lr_map(train_cfg: Dict[str, Any]) -> Dict[str, float]:
-    return {
-        "self_attn_lora": float(train_cfg["self_attn_lora_lr"]),
-        "cross_attn_shared_lora": float(train_cfg["cross_attn_shared_lora_lr"]),
-        "cross_attn_text_lora": float(train_cfg["cross_attn_text_lora_lr"]),
-        "cross_attn_image_lora": float(train_cfg["cross_attn_image_lora_lr"]),
-        "norm3_full": float(train_cfg["norm3_full_lr"]),
-        "img_emb_full": float(train_cfg["img_emb_full_lr"]),
-    }
-
-
-def classify_trainable_parameter(name: str) -> str:
-    is_lora = name.endswith(".lora_A") or name.endswith(".lora_B")
-    if is_lora and ".self_attn." in name:
-        return "self_attn_lora"
-    if is_lora and (".cross_attn.q." in name or ".cross_attn.o." in name):
-        return "cross_attn_shared_lora"
-    if is_lora and (".cross_attn.k_img." in name or ".cross_attn.v_img." in name):
-        return "cross_attn_image_lora"
-    if is_lora and (".cross_attn.k." in name or ".cross_attn.v." in name):
-        return "cross_attn_text_lora"
-    if ".norm3." in name:
-        return "norm3_full"
-    if name.startswith("img_emb.") or ".img_emb." in name:
-        return "img_emb_full"
-    raise RuntimeError(f"Unable to classify trainable parameter: {name}")
+def config_lr(train_cfg: Dict[str, Any], key: str, fallback_key: str) -> float:
+    if key in train_cfg:
+        return float(train_cfg[key])
+    return float(train_cfg[fallback_key])
 
 
 def configure_trainable(model: nn.Module, train_cfg: Dict[str, Any], rank: int):
@@ -328,8 +303,10 @@ def configure_trainable(model: nn.Module, train_cfg: Dict[str, Any], rank: int):
         raise ValueError(f"Unsupported train_mode: {mode}")
 
     groups = {
-        group_name: []
-        for group_name in PARAMETER_GROUP_NAMES
+        "self_attn_lora": [],
+        "cross_attn_lora": [],
+        "cross_attn_full": [],
+        "full_extra": [],
     }
     named_trainable = []
     assigned_parameter_ids = {}
@@ -343,7 +320,16 @@ def configure_trainable(model: nn.Module, train_cfg: Dict[str, Any], rank: int):
         if not p.requires_grad:
             continue
         named_trainable.append((name, p.numel()))
-        group_name = classify_trainable_parameter(name)
+        if ("lora_A" in name or "lora_B" in name) and "self_attn" in name:
+            group_name = "self_attn_lora"
+        elif ("lora_A" in name or "lora_B" in name) and "cross_attn" in name:
+            group_name = "cross_attn_lora"
+        elif "lora_A" in name or "lora_B" in name:
+            group_name = "full_extra"
+        elif "cross_attn" in name:
+            group_name = "cross_attn_full"
+        else:
+            group_name = "full_extra"
 
         parameter_id = id(p)
         if parameter_id in assigned_parameter_ids:
@@ -367,22 +353,21 @@ def configure_trainable(model: nn.Module, train_cfg: Dict[str, Any], rank: int):
             f"extra={len(extra)}"
         )
 
-    required_nonempty_groups = ["self_attn_lora", "norm3_full", "img_emb_full"]
-    if "cross_attn" in lora_targets:
-        required_nonempty_groups.extend(
-            [
-                "cross_attn_shared_lora",
-                "cross_attn_text_lora",
-                "cross_attn_image_lora",
-            ]
+    if "cross_attn" in lora_targets and not groups["cross_attn_lora"]:
+        raise RuntimeError(
+            "Config requests cross-attn LoRA, but cross_attn_lora group is empty."
         )
-    for group_name in required_nonempty_groups:
-        if not groups[group_name]:
-            raise RuntimeError(
-                f"Required trainable parameter group is empty: {group_name}"
-            )
 
-    lr_map = train_lr_map(train_cfg)
+    lr_map = {
+        "self_attn_lora": config_lr(train_cfg, "self_attn_lora_lr", "lora_lr"),
+        "cross_attn_lora": config_lr(
+            train_cfg, "cross_attn_lora_lr", "cross_attn_lr"
+        ),
+        "cross_attn_full": config_lr(
+            train_cfg, "cross_attn_full_lr", "cross_attn_lr"
+        ),
+        "full_extra": float(train_cfg["full_extra_lr"]),
+    }
     print_parameter_group_report(
         groups,
         lr_map,
@@ -405,7 +390,16 @@ def build_optimizer(
     named_trainable: List[Tuple[str, int]],
 ):
     optim_groups = []
-    lr_map = train_lr_map(train_cfg)
+    lr_map = {
+        "self_attn_lora": config_lr(train_cfg, "self_attn_lora_lr", "lora_lr"),
+        "cross_attn_lora": config_lr(
+            train_cfg, "cross_attn_lora_lr", "cross_attn_lr"
+        ),
+        "cross_attn_full": config_lr(
+            train_cfg, "cross_attn_full_lr", "cross_attn_lr"
+        ),
+        "full_extra": float(train_cfg["full_extra_lr"]),
+    }
     for name in PARAMETER_GROUP_NAMES:
         if groups[name]:
             optim_groups.append(
@@ -469,43 +463,6 @@ def lr_lambda_for_step(step: int, lr_cfg: LRSchedulerConfig) -> float:
 
 def build_lr_scheduler(optimizer, lr_cfg: LRSchedulerConfig):
     return LambdaLR(optimizer, lr_lambda=lambda step: lr_lambda_for_step(step, lr_cfg))
-
-
-def restore_lr_scheduler_from_step(
-    engine,
-    global_step: int,
-    lr_cfg: LRSchedulerConfig,
-    rank: int,
-) -> None:
-    scheduler = getattr(engine, "lr_scheduler", None)
-    optimizer = getattr(scheduler, "optimizer", None) or getattr(engine, "optimizer", None)
-    if scheduler is None:
-        rank0_print(rank, "[resume full] WARNING: DeepSpeed engine has no lr_scheduler")
-        return
-    if optimizer is None or not hasattr(optimizer, "param_groups"):
-        raise RuntimeError("Cannot restore LR scheduler: optimizer param_groups missing")
-
-    state = scheduler.state_dict()
-    base_lrs = list(state.get("base_lrs", []))
-    if len(base_lrs) != len(optimizer.param_groups):
-        raise RuntimeError(
-            "Cannot restore LR scheduler: base_lrs count does not match optimizer "
-            f"param_groups ({len(base_lrs)} vs {len(optimizer.param_groups)})"
-        )
-
-    lr_factor = lr_lambda_for_step(global_step, lr_cfg)
-    restored_lrs = [float(base_lr) * lr_factor for base_lr in base_lrs]
-    state["last_epoch"] = int(global_step)
-    state["_step_count"] = int(global_step) + 1
-    state["_last_lr"] = restored_lrs
-    scheduler.load_state_dict(state)
-    for group, lr in zip(optimizer.param_groups, restored_lrs):
-        group["lr"] = lr
-    rank0_print(
-        rank,
-        "[resume full] restored lr_scheduler from global_step="
-        f"{global_step} lr_factor={lr_factor:.6g}",
-    )
 
 
 def import_pipeline(conditioning_mode: str):
@@ -1193,7 +1150,6 @@ def build_flow_matching_batch(
         ).to(target_latents)
         noisy = (1.0 - sigma) * target_latents + sigma * noise
         training_target = noise - target_latents
-        timestep = timestep.to(device=device, dtype=dtype)
         timestep_index = None
         training_weight = torch.ones((), device=device, dtype=torch.float32)
 
@@ -1247,14 +1203,12 @@ class DiagnosticsConfig:
     grad_norm_every: int = 10
     grad_group_every: int = 50
     check_nonfinite_every: int = 10
-    force_full_steps: Tuple[int, ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "grad_norm_every": self.grad_norm_every,
             "grad_group_every": self.grad_group_every,
             "check_nonfinite_every": self.check_nonfinite_every,
-            "force_full_steps": list(self.force_full_steps),
         }
 
 
@@ -1264,13 +1218,10 @@ def parse_diagnostics_config(train_cfg: Dict[str, Any]) -> DiagnosticsConfig:
         grad_norm_every=int(raw.get("grad_norm_every", 10)),
         grad_group_every=int(raw.get("grad_group_every", 50)),
         check_nonfinite_every=int(raw.get("check_nonfinite_every", 10)),
-        force_full_steps=tuple(int(step) for step in raw.get("force_full_steps", [])),
     )
-    for key in ("grad_norm_every", "grad_group_every", "check_nonfinite_every"):
-        if getattr(cfg, key) < 0:
+    for key, value in cfg.to_dict().items():
+        if value < 0:
             raise ValueError(f"train.diagnostics.{key} must be >= 0")
-    if any(step < 0 for step in cfg.force_full_steps):
-        raise ValueError("train.diagnostics.force_full_steps must contain steps >= 0")
     return cfg
 
 
@@ -1278,50 +1229,49 @@ def should_log_every(global_step: int, every: int) -> bool:
     return every > 0 and global_step % every == 0
 
 
+def gradients_are_partitioned(engine) -> bool:
+    try:
+        return bool(engine.zero_optimization_partition_gradients())
+    except Exception:
+        return False
+
+
 def gradient_group_stats(
     groups: Dict[str, List[Tuple[str, nn.Parameter]]],
+    distributed: bool,
+    aggregate_across_ranks: bool,
+    device,
 ) -> Dict[str, Dict[str, float]]:
     stats: Dict[str, Dict[str, float]] = {}
     for group_name, items in groups.items():
         if not items:
             continue
-        sum_sq = 0.0
-        grad_elements = 0
-        zero_count = 0
-        none_count = 0
-        nonfinite_count = 0
+        totals = torch.zeros(6, device=device, dtype=torch.float64)
         for _, parameter in items:
-            grad = safe_get_full_grad(parameter)
+            totals[4] += 1
+            grad = parameter.grad
             if grad is None:
-                none_count += 1
+                totals[3] += 1
                 continue
             grad_float = grad.detach().float()
             finite = torch.isfinite(grad_float)
-            finite_grad = torch.where(
-                finite,
-                grad_float,
-                torch.zeros_like(grad_float),
-            )
-            sum_sq += float(finite_grad.pow(2).sum().double().item())
-            grad_elements += int(grad_float.numel())
-            zero_count += int(((grad_float == 0) & finite).sum().item())
-            nonfinite_count += int((~finite).sum().item())
-        if grad_elements == 0:
-            raise RuntimeError(
-                f"No gradients were readable for non-empty parameter group "
-                f"{group_name}. DeepSpeed safe_get_full_grad returned None for "
-                f"all {len(items)} parameters."
-            )
-        param_count = len(items)
+            finite_grad = torch.where(finite, grad_float, torch.zeros_like(grad_float))
+            totals[0] += finite_grad.pow(2).sum().double()
+            totals[1] += grad_float.numel()
+            totals[2] += (grad_float == 0).sum().double()
+            totals[5] += (~finite).sum().double()
+        if distributed and aggregate_across_ranks:
+            torch.distributed.all_reduce(totals, op=torch.distributed.ReduceOp.SUM)
+        grad_elements = totals[1].clamp_min(1.0)
+        param_count = totals[4].clamp_min(1.0)
         stats[group_name] = {
-            "norm": math.sqrt(max(0.0, sum_sq)),
-            "rms": math.sqrt(max(0.0, sum_sq) / float(grad_elements)),
-            "grad_elements": float(grad_elements),
-            "parameter_count": float(param_count),
-            "none_fraction": float(none_count / param_count),
-            "zero_fraction": float(zero_count / grad_elements),
-            "nonfinite_count": float(nonfinite_count),
-            "sum_sq": float(sum_sq),
+            "norm": float(torch.sqrt(totals[0]).item()),
+            "rms": float(torch.sqrt(totals[0] / grad_elements).item()),
+            "grad_elements": float(totals[1].item()),
+            "none_fraction": float((totals[3] / param_count).item()),
+            "zero_fraction": float((totals[2] / grad_elements).item()),
+            "nonfinite_count": float(totals[5].item()),
+            "sum_sq": float(totals[0].item()),
         }
     return stats
 
@@ -1334,25 +1284,16 @@ def log_gradient_diagnostics(
     log_global: bool,
     log_groups: bool,
     log_nonfinite: bool,
-    print_report: bool = False,
 ) -> None:
     if writer is None or rank != 0:
         return
-    global_norm = None
     if log_global:
         global_sum_sq = sum(item["sum_sq"] for item in group_stats.values())
-        global_norm = math.sqrt(max(0.0, global_sum_sq))
         writer.add_scalar(
             "train/grad_norm/global",
-            global_norm,
+            math.sqrt(max(0.0, global_sum_sq)),
             global_step,
         )
-    if print_report:
-        if global_norm is None:
-            global_norm = math.sqrt(
-                max(0.0, sum(item["sum_sq"] for item in group_stats.values()))
-            )
-        rank0_print(rank, f"[grad step={global_step}] global_norm={global_norm:.6g}")
     for group_name, item in group_stats.items():
         if log_groups:
             writer.add_scalar(
@@ -1360,16 +1301,6 @@ def log_gradient_diagnostics(
             )
             writer.add_scalar(
                 f"train/grad_rms/{group_name}", item["rms"], global_step
-            )
-            writer.add_scalar(
-                f"train/grad_elements/{group_name}",
-                item["grad_elements"],
-                global_step,
-            )
-            writer.add_scalar(
-                f"train/grad_parameter_count/{group_name}",
-                item["parameter_count"],
-                global_step,
             )
             writer.add_scalar(
                 f"train/grad_none_fraction/{group_name}",
@@ -1387,58 +1318,6 @@ def log_gradient_diagnostics(
                 item["nonfinite_count"],
                 global_step,
             )
-        if print_report:
-            rank0_print(
-                rank,
-                f"[grad step={global_step}] {group_name}: "
-                f"norm={item['norm']:.6g} rms={item['rms']:.6g} "
-                f"elements={item['grad_elements']:.0f} "
-                f"params={item['parameter_count']:.0f} "
-                f"none_fraction={item['none_fraction']:.6g} "
-                f"zero_fraction={item['zero_fraction']:.6g} "
-                f"nonfinite={item['nonfinite_count']:.0f}",
-            )
-
-
-def log_deepspeed_global_grad_norm(
-    engine,
-    writer,
-    rank: int,
-    global_step: int,
-    warn: bool = True,
-) -> bool:
-    getter = getattr(engine, "get_global_grad_norm", None)
-    if getter is None:
-        if warn:
-            rank0_print(
-                rank,
-                "[grad warning] DeepSpeed engine has no get_global_grad_norm(); "
-                "global grad norm will only be logged on detailed diagnostic steps.",
-            )
-        return False
-    value = getter()
-    if value is None:
-        if warn:
-            rank0_print(
-                rank,
-                "[grad warning] DeepSpeed get_global_grad_norm() returned None; "
-                "global grad norm will only be logged on detailed diagnostic steps.",
-            )
-        return False
-    if torch.is_tensor(value):
-        value = float(value.detach().float().item())
-    else:
-        value = float(value)
-    if not math.isfinite(value):
-        if warn:
-            rank0_print(
-                rank,
-                f"[grad warning] DeepSpeed global grad norm is not finite: {value}",
-            )
-        return False
-    if writer is not None and rank == 0:
-        writer.add_scalar("train/grad_norm/global", value, global_step)
-    return True
 
 
 @torch.no_grad()
@@ -1531,9 +1410,14 @@ def run_validation(
         )
         model_kwargs.update(item["conditions"])
 
-        pred = engine(**model_kwargs)
-        error = (pred.float() - fm_batch.training_target.float()).pow(2)
-        mask = fm_batch.loss_mask.float()
+        with torch.autocast(
+            device_type="cuda",
+            dtype=torch.bfloat16,
+            enabled=torch.cuda.is_available(),
+        ):
+            pred = engine(**model_kwargs)
+            error = (pred.float() - fm_batch.training_target.float()).pow(2)
+            mask = fm_batch.loss_mask.float()
 
         numerator, denominator = loss_parts(error, mask)
         weighted_numerator = numerator * fm_batch.training_weight.to(numerator)
@@ -1799,7 +1683,7 @@ def train(cfg: Dict[str, Any]) -> None:
             tag=resume_cfg.get("tag"),
             load_module_strict=False,
             load_optimizer_states=True,
-            load_lr_scheduler_states=False,
+            load_lr_scheduler_states=True,
         )
         if load_path is None:
             raise RuntimeError(
@@ -1823,7 +1707,6 @@ def train(cfg: Dict[str, Any]) -> None:
             )
         global_step = int(client_state.get("global_step", 0))
         micro_step = int(client_state.get("micro_step", 0))
-        restore_lr_scheduler_from_step(engine, global_step, lr_cfg, rank)
         restore_rng_state(client_state.get("rng_state"))
         rank0_print(
             rank,
@@ -1848,7 +1731,6 @@ def train(cfg: Dict[str, Any]) -> None:
         raise ValueError(f"Unknown resume mode: {resume_cfg['mode']}")
 
     writer = SummaryWriter(str(tb_dir)) if rank == 0 else None
-    warned_missing_deepspeed_global_norm = False
 
     max_steps = int(train_cfg["max_steps"])
     accum_steps = int(cfg["deepspeed"]["gradient_accumulation_steps"])
@@ -1938,15 +1820,20 @@ def train(cfg: Dict[str, Any]) -> None:
         )
         model_kwargs.update(item["conditions"])
 
-        pred = engine(**model_kwargs)
-        error = (pred.float() - fm_batch.training_target.float()).pow(2)
-        mask = fm_batch.loss_mask.float()
-        unweighted_loss = masked_mse_loss(error, mask)
-        weighted_loss = unweighted_loss * fm_batch.training_weight.to(
-            unweighted_loss
-        )
-        loss = weighted_loss if flow_cfg.use_training_weight else unweighted_loss
-        per_slot_losses = slot_mse_losses(error.detach(), mask.detach())
+        with torch.autocast(
+            device_type="cuda",
+            dtype=torch.bfloat16,
+            enabled=torch.cuda.is_available(),
+        ):
+            pred = engine(**model_kwargs)
+            error = (pred.float() - fm_batch.training_target.float()).pow(2)
+            mask = fm_batch.loss_mask.float()
+            unweighted_loss = masked_mse_loss(error, mask)
+            weighted_loss = unweighted_loss * fm_batch.training_weight.to(
+                unweighted_loss
+            )
+            loss = weighted_loss if flow_cfg.use_training_weight else unweighted_loss
+            per_slot_losses = slot_mse_losses(error.detach(), mask.detach())
 
         timestep_index_tensor = torch.tensor(
             -1.0 if fm_batch.timestep_index is None else float(fm_batch.timestep_index),
@@ -1967,44 +1854,33 @@ def train(cfg: Dict[str, Any]) -> None:
         engine.backward(loss)
         accumulation_boundary = engine.is_gradient_accumulation_boundary()
         diagnostics_step = global_step + 1
-        detailed_grad_now = accumulation_boundary and (
-            diagnostics_step in diagnostics_cfg.force_full_steps
+        if accumulation_boundary and (
+            should_log_every(diagnostics_step, diagnostics_cfg.grad_norm_every)
             or should_log_every(diagnostics_step, diagnostics_cfg.grad_group_every)
-            or should_log_every(
-                diagnostics_step, diagnostics_cfg.check_nonfinite_every
-            )
-        )
-        global_grad_now = accumulation_boundary and should_log_every(
-            diagnostics_step, diagnostics_cfg.grad_norm_every
-        )
-        nonfinite_grad_now = accumulation_boundary and should_log_every(
-            diagnostics_step, diagnostics_cfg.check_nonfinite_every
-        )
-        if detailed_grad_now:
+            or should_log_every(diagnostics_step, diagnostics_cfg.check_nonfinite_every)
+        ):
             group_stats = gradient_group_stats(
                 groups=param_groups,
+                distributed=distributed,
+                aggregate_across_ranks=gradients_are_partitioned(engine),
+                device=pipe.device,
             )
             log_gradient_diagnostics(
                 writer=writer,
                 rank=rank,
                 global_step=diagnostics_step,
                 group_stats=group_stats,
-                log_global=True,
-                log_groups=True,
-                log_nonfinite=True if nonfinite_grad_now or detailed_grad_now else False,
-                print_report=diagnostics_step in diagnostics_cfg.force_full_steps,
+                log_global=should_log_every(
+                    diagnostics_step, diagnostics_cfg.grad_norm_every
+                ),
+                log_groups=should_log_every(
+                    diagnostics_step, diagnostics_cfg.grad_group_every
+                ),
+                log_nonfinite=should_log_every(
+                    diagnostics_step, diagnostics_cfg.check_nonfinite_every
+                ),
             )
         engine.step()
-        if global_grad_now and not detailed_grad_now:
-            logged_global = log_deepspeed_global_grad_norm(
-                engine=engine,
-                writer=writer,
-                rank=rank,
-                global_step=diagnostics_step,
-                warn=not warned_missing_deepspeed_global_norm,
-            )
-            if not logged_global:
-                warned_missing_deepspeed_global_norm = True
         micro_step += 1
 
         if accumulation_boundary:
@@ -2122,7 +1998,7 @@ def train(cfg: Dict[str, Any]) -> None:
                     "rng_state": capture_rng_state(),
                     "conditioning_mode": mode,
                     "flow_matching": flow_cfg.to_dict(),
-                    "lr_scheduler_config": lr_cfg.to_dict(),
+                    "lr_scheduler": lr_cfg.to_dict(),
                     "training_module": "KeyframeWanTrainingModule/v1",
                 }
                 tag = f"step_{global_step:06d}"
